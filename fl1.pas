@@ -17,7 +17,7 @@ type
   period, becomes, beginsym, endsym, ifsym, thensym,
   whilesym, dosym, callsym, constsym, varsym, procsym );
   alfa = packed array [1..al] of char; 
-  object1 = (constant, variable, procedure1);
+  object = (constant, variable, procedure);
   symset = set of symbol;
   fct = (lit, opr, lod, sto, cal, int, jmp, jpc); {functions}
   instruction = packed record
@@ -56,11 +56,11 @@ var
            name : alfa;
            case kind : object of
 constant : (val : integer);
-variable, procedure1 : (level, adr : integer)
+variable, procedure : (level, adr : integer)
          end;
 procedure error (n : integer);
 begin 
-  writeln('****', ' ' : cc―1, '|++|', n : 2);  err := err + 1
+  writeln(‘****’, ‘ ‘ : cc―1, ‘↑’, n : 2);  err := err + 1
   {cc为当前行已读的字符数, n为错误号}{错误数err加1}
 end {error};
 procedure getsym;
@@ -71,12 +71,12 @@ if cc = ll then {如果cc指向行末}
 begin
   if eof(input) then {如果已到文件尾}
   begin
-    write('PROGRAM INCOMPLETE'); {goto 99}
+    write(‘PROGRAM INCOMPLETE’); goto 99
   end;
   {读新的一行}
-  ll := 0; cc := 0; write(cx : 5, ' ');
+  ll := 0; cc := 0; write(cx : 5, ‘ ‘);
                    {cx : 5位数}
-  while not eoln(input) do {如果不是行末}
+  while eoln(input) do {如果不是行末}
   begin
     ll := ll + 1; read(ch); write(ch);
     line[ll] := ch  {一次读一行入line}
@@ -85,42 +85,42 @@ begin
 end;
 cc := cc + 1; ch := line[cc]  {ch取line中下一个字符}
   end {getch};
-begin {getsym} 
-  while ch = ' ' do getch; {跳过无用空白}
-  if ch in ['a'..'z'] then 
+begin {getsym} {
+  while ch = ‘ ‘ do getch; {跳过无用空白}
+  if ch in [‘A’..’Z’] then 
   begin {标识符或保留字} k := 0;
 repeat {处理字母开头的字母﹑数字串}
   if k < al then
   begin k:= k + 1; a[k] := ch
   end;
   getch
-until (ch in ['a'..'z', '0'..'9']);
+until (ch in [‘A’..’Z’, ‘0’..’9’]);
 if k ≥ kk  then kk := k else
-  repeat a[kk] := ' '; kk := kk―1 {如果标识符长度不是最大长度, 后面补空白}
-  until kk = k;                
+  repeat a[kk] := ‘ ‘; kk := kk―1 {如果标识符长度不是最
+  until kk = k;                大长度, 后面补空白}
 id := a;  i := 1;  j := norw;
 {id中存放当前标识符或保留字的字符串}
-repeat  k := (i+j) div 2; {用二分查找法在保留字表中找当前的标识符id}
-  if id ≤ word[k] then j := k―1;  
+repeat  k := (i+j) div 2; {用二分查找法在保留字表中找
+  if id ≤ word[k] then j := k―1;  当前的标识符id}
   if id ≥ word[k] then i := k + 1
 until i > j;
 if i―1 > j then sym := wsym[k] else sym := ident
 {如果找到, 当前记号sym为保留字, 否则sym为标识符}
   end else
-  if ch in ['0'..'9'] then
+  if ch in [‘0’..’9’] then
   begin {数字} 
 k := 0;  num := 0;  sym := number; {当前记号sym为数字}
 repeat {计算数字串的值}
   num := 10*num + (ord(ch)―ord(0));
   {ord(ch)和ord(0)是ch和0在ASCII码中的序号}
   k := k + 1;  getch;
-until (ch in ['0'..'9']);
+until (ch in [‘0’..’9’]);
 if k > nmax then  error(30)
 {当前数字串的长度超过上界,则报告错误}
   end else
-  if ch = ':' then {处理赋值号}
+  if ch = ‘:’ then {处理赋值号}
   begin  getch;
-if ch = '=' then
+if ch = ‘=’ then
 begin  sym := becomes; getch end
 else  sym := nul;
   end else {处理其它算符或标点符号}
@@ -130,7 +130,7 @@ end {getsym};
 procedure  gen(x : fct; y, z : integer); 
 begin 
   if cx > cxmax then {如果当前指令序号>代码的最大长度}
-  begin write('PROGRAM TOO LONG'); {goto 99}
+  begin write(‘PROGRAM TOO LONG’); goto 99
   end;
   with code[cx] do {在代码数组cx位置生成一条新代码}
   begin  f := x; {功能码} l := y; {层号} a := z {地址}
@@ -139,10 +139,10 @@ begin
 end {gen};
 procedure  test(s1, s2 : symset; n : integer);
 begin
-  if not (sym in s1) then 
+  if (sym in s1) then 
 {如果当前记号不属于集合S1,则报告错误n}
   begin  error(n);  s1 := s1 + s2;
-while not (sym in s1) do getsym 
+while (sym in s1) do getsym 
 {跳过一些记号, 直到当前记号属于S1∪S2}
   end
 end {test};
@@ -151,7 +151,7 @@ procedure  block(lev, tx : integer; fsys : symset);
 dx : integer; {本过程数据空间分配下标}
 tx0 : integer; {本过程标识表起始下标}
 cx0 : integer; {本过程代码起始下标}
-  procedure  enter(k : object1);
+  procedure  enter(k : object);
   begin {把object填入符号表中}
 tx := tx +1; {符号表指针加1}
 with table[tx] do{在符号表中增加新的一个条目}
@@ -168,7 +168,7 @@ kind := k; {当前标识符的种类}
 adr := dx; {变量地址为当前过程数据空间栈顶} 
 dx := dx +1; {栈顶指针加1}
           end;
-  procedure1 : level := lev {本过程的嵌套层数}
+  procedure : level := lev {本过程的嵌套层数}
   end
 end
   end {enter};
@@ -511,7 +511,7 @@ begin
   begin  b1 := s[b1];  l := l―1 end;
   base := b1
 end {base};
-  begin  writeln('START PL/0');
+  begin  writeln(‘START PL/0’);
 t := 0; {栈顶地址寄存器}
 b := 1; {基地址寄存器}
 p := 0; {程序地址寄存器}
@@ -613,36 +613,36 @@ p := a {指令地址寄存储器指向被调用过程的地址a}
   end {with, case}
 until p = 0; 
 {程序一直执行到p取最外层主程序的返回地址0时为止}
-write('END PL/0');
+write(‘END PL/0’);
   end {interpret};
 begin  {主程序}
-  for ch := 'A' to ';' do  ssym[ch] := nul; 
+  for ch := ‘A’ to ‘;’ do  ssym[ch] := nul; 
   {ASCII码的顺序}
-  word[1] := 'BEGIN     '; word[2] := 'CALL      ';
-保word[3] := 'CONST     '; word[4] := 'DO        ';
-留word[5] := 'END       '; word[6] := 'IF        ';
-字word[7] := 'ODD       '; word[8] := 'PROCEDURE ';
-  word[9] := 'THEN      '; word[10] := 'VAR       ';
-  word[11] := 'WHILE     '; 
+  word[1] := ‘BEGIN     ‘; word[2] := ‘CALL      ‘;
+保word[3] := ‘CONST     ‘; word[4] := ‘DO        ‘;
+留word[5] := ‘END       ‘; word[6] := ‘IF        ‘;
+字word[7] := ‘ODD       ‘; word[8] := ‘PROCEDURE ‘;
+  word[9] := ‘THEN      ‘; word[10] := ‘VAR       ‘;
+  word[11] := ‘WHILE     ‘; 
 保wsym[1] := beginsym;   wsym[2] := callsym;
 留wsym[3] := constsym;   wsym[4] := dosym;
 字wsym[5] := endsym;    wsym[6] := ifsym;
 的wsym[7] := oddsym;    wsym[8] := procsym;
 记wsym[9] := thensym;    wsym[10] := varsym;
 号wsym[11] := whilesym;
-ssym['+'] := plus;      ssym['―'] := minus;
-ssym['*'] := times;     ssym['/'] := slash;
-  ssym['('] := lparen;     ssym[')'] := rparen;
-  ssym['='] := eql;       ssym[','] := comma;
-  ssym['.'] := period;     ssym['≠'] := neq;
-  ssym['<'] := lss;       ssym['>'] := gtr;
-  ssym['≤'] := leq;      ssym['≥'] := geq;
-  ssym[';'] := semicolon;
+ssym[‘+’] := plus;      ssym[‘―’] := minus;
+ssym[‘*’] := times;     ssym[‘/’] := slash;
+  ssym[‘(’] := lparen;     ssym[‘)’] := rparen;
+  ssym[‘=’] := eql;       ssym[‘,’] := comma;
+  ssym[‘.’] := period;     ssym[‘≠’] := neq;
+  ssym[‘<’] := lss;       ssym[‘>’] := gtr;
+  ssym[‘≤’] := leq;      ssym[‘≥’] := geq;
+  ssym[‘;’] := semicolon;
   {算符和标点符号的记号}
-  mnemonic[lit] := 'LIT';     mnemonic[opr] := 'OPR';
-  mnemonic[lod] := 'LOD';    mnemonic[sto] := 'STO';
-  mnemonic[cal] := 'CAL';    mnemonic[int] := 'INT';
-  mnemonic[jmp] := 'JMP';    mnemonic[jpc] := 'JPC';
+  mnemonic[lit] := ‘LIT’;     mnemonic[opr] := ‘OPR’;
+  mnemonic[lod] := ‘LOD’;    mnemonic[sto] := ‘STO’;
+  mnemonic[cal] := ‘CAL’;    mnemonic[int] := ‘INT’;
+  mnemonic[jmp] := ‘JMP’;    mnemonic[jpc] := ‘JPC’;
   {中间代码指令的字符串}
   declbegsys := [constsym, varsym, procsym];
   {说明语句的开始符号}
@@ -654,7 +654,7 @@ ssym['*'] := times;     ssym['/'] := slash;
   cc := 0; {当前行中输入字符的指针} 
 cx := 0; {代码数组的当前指针} 
 ll := 0; {输入当前行的长度} 
-ch := ' '; {当前输入的字符}
+ch := ‘ ‘; {当前输入的字符}
 kk := al; {标识符的长度}
 getsym; {取下一个记号}
   block(0, 0, [period]+declbegsys+statbegsys); {处理程序体}
@@ -662,7 +662,7 @@ getsym; {取下一个记号}
   {如果当前记号不是句号, 则出错}
   if err = 0 then interpret
   {如果编译无错误, 则解释执行中间代码}
-          else write('ERRORS IN PL/0 PROGRAM');
+          else write(‘ERRORS IN PL/0 PROGRAM’);
 99 : writeln
 end.
 
