@@ -2,7 +2,7 @@
 program  PL0;
 {带有代码生成的PL0编译程序}
 const
-    norw = 11; {保留字的个数}
+    norw = 13; {保留字的个数}
     txmax = 100; {标识符表长度}
     nmax = 14; {数字的最大位数}
     al = 10; {标识符的长度}
@@ -14,11 +14,11 @@ type
           ( nul, ident, number, plus, minus, times, slash, oddsym,
             eql, neq, lss, leq, gtr, geq, lparen, rparen, comma, semicolon,
             period, becomes, beginsym, endsym, ifsym, thensym,
-            whilesym, dosym, callsym, constsym, varsym, procsym );
+            whilesym, dosym, callsym, constsym, varsym, procsym,readsym,writesym );
     alfa = packed array [1..al] of char; 
     object1 = (constant, variable, procedur);
     symset = set of symbol;
-    fct = (lit, opr, lod, sto, cal, int, jmp, jpc); {functions}
+    fct = (lit, opr, lod, sto, cal, int, jmp, jpc,red,wrt); {functions ,red,wrt}
     instruction = packed record
         f : fct;  {功能码}
         l : 0..levmax; {相对层数}
@@ -232,7 +232,8 @@ var
     begin {在标识符表中查标识符id}
         table[0].name := id; {在符号表栈的最下方预填标识符id} 
         i := tx; {符号表栈顶指针}
-        while table[i].name <> id do i := i-1;
+        while table[i].name <> id do 
+            i := i-1;
         {从符号表栈顶往下查标识符id}
         position := i {若查到,i为id的入口,否则i=0 } 
     end {position};
@@ -524,6 +525,49 @@ var
                     条件表达式的代码的第一条指令处} 
                     code[cx2].a := cx 
                     {把下一指令地址回填到前面生成的jpc指令的地址栏}
+                end else if sym = readsym then {处理读语句}
+                begin
+                    getsym;
+                    if sym = lparen then
+                    repeat
+                        getsym;
+                        if sym = ident then
+                        begin
+                            i := position(id);
+                            if i = 0 then 
+                                error(11)
+                            else if table[i].kind <> variable then
+                            begin
+                                error(12);
+                                i := 0
+                            end else with table[i] do
+                                gen(red, lev - level, adr)
+                        end
+                        else 
+                            error(4);
+                        getsym;
+                    until sym <> comma
+                    else 
+                        error(24);{要以做括号开始}
+                    
+                    if sym <> rparen
+                        then error(22);
+                    getsym
+                end else if sym = writesym then {处理写语句}
+                begin
+                    getsym;
+                    if sym = lparen then
+                    repeat
+                        getsym;
+                        expression([rparen, comma] + fsys);
+                        gen(wrt, 0, 0);
+                    until sym <> comma
+                    else 
+                        error(24);
+
+                    if sym <> rparen then 
+                        error(22);
+                    getsym
                 end;
                 test(fsys, [ ], 19) 
                 {测试下一记号是否正常, 否则出错, 跳过一些记号}
@@ -741,7 +785,15 @@ var
                             {如果当前运算结果为“假”(0), 程序转到地址a
                             执行, 否则顺序执行}
                             t := t-1 {数据栈顶指针减1}
-                        end
+                        end;
+                    red :
+                        begin
+                        readln(s[base(l) + a]);
+                        end;
+                    wrt:
+                        begin
+                        writeln(s[t]);
+                        end;
                 end {with, case}
             until p = 0; 
         {程序一直执行到p取最外层主程序的返回地址0时为止}
@@ -765,14 +817,18 @@ begin  {主程序}
     word[3] := 'const     '; word[4] := 'do        ';
     word[5] := 'end       '; word[6] := 'if        ';
     word[7] := 'odd       '; word[8] := 'procedure ';
-    word[9] := 'then      '; word[10]:= 'var       ';
-    word[11]:= 'while     '; 
+
+    word[10] := 'then      '; word[11]:= 'var       ';
+    word[12]:= 'while     '; word[9]:= 'read      ';
+    word[13]:= 'write     ';
     wsym[1] := beginsym;   wsym[2] := callsym;
     wsym[3] := constsym;   wsym[4] := dosym;
     wsym[5] := endsym;    wsym[6] := ifsym;
     wsym[7] := oddsym;    wsym[8] := procsym;
-    wsym[9] := thensym;    wsym[10] := varsym;
-    wsym[11] := whilesym;
+
+    wsym[10] := thensym;    wsym[11] := varsym;
+    wsym[12] := whilesym;   wsym[9]:= readsym;
+    wsym[13] := writesym;
 
     ssym['+'] := plus;      ssym['-'] := minus;
     ssym['*'] := times;     ssym['/'] := slash;
@@ -788,6 +844,7 @@ begin  {主程序}
     mnemonic[lod] := 'LOD';    mnemonic[sto] := 'STO';
     mnemonic[cal] := 'CAL';    mnemonic[int] := 'INT';
     mnemonic[jmp] := 'JMP';    mnemonic[jpc] := 'JPC';
+    mnemonic[red] := 'RED';    mnemonic[wrt] := 'WRT';
     {中间代码指令的字符串}
     declbegsys := [constsym, varsym, procsym];
     {说明语句的开始符号}
