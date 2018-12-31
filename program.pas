@@ -32,9 +32,14 @@ end;
 z := f
   end;
 begin 
+  read(x);
+  read(y);
+  call multiply;
+  write(z);
+end.
+
+{  
   x := m;  y := n;  call multiply;
   x := 25;  y:= 3;  call divide;
   x := 84;  y := 36;  call gcd;
-  read(x);
-  write(x);
-end.
+}
